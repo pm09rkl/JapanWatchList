@@ -28,7 +28,10 @@ namespace watchList
             
         const std::string& getBarcode() const
             { return _barcode; }
-        
+            
+        const std::string& getImageUrl() const
+            { return _imageUrl; }
+
     private:
         CDiskunionItemDescription();
         
@@ -39,6 +42,7 @@ namespace watchList
         std::string _catalogNumber;
         std::string _releaseYear;        
         std::string _barcode;
+        std::string _imageUrl;
     };
     
     class CDiskunionUsedItemInfo
@@ -126,11 +130,14 @@ namespace watchList
         static std::string_view USED_AREA_OPEN_TAG;
         static std::string_view ITEM_SPEC_AREA_OPEN_TAG;        
         static std::string_view PRICE_OPEN_TAG;
+        static std::string_view PRICE_CLOSE_TAG;
         static std::string_view DATA_ID_ATTRIBUTE;
         static std::string_view DESCRIPTION_OPEN_TAG;
         static std::string_view DESCRIPTION_CLOSE_TAG;
         static std::string_view LIST_OPEN_TAG;
         static std::string_view LIST_CLOSE_TAG;
+        static std::string_view META_IMAGE_PROPERTY_TAG;
+        static std::string_view CONTENT_ATTRIBUTE;
             
     private:
         CDiskunionItemDescription _itemDescription;

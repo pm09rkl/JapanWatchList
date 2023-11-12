@@ -14,11 +14,14 @@ std::string_view CDiskunionItemInfoHtmlParser::REF_CLOSE_TAG = "</a>";
 std::string_view CDiskunionItemInfoHtmlParser::ITEM_SPEC_AREA_OPEN_TAG = "<div class=\"itemSpecArea\"";
 std::string_view CDiskunionItemInfoHtmlParser::USED_AREA_OPEN_TAG = "<div class=\"itemUsedArea__txtArea\">";
 std::string_view CDiskunionItemInfoHtmlParser::PRICE_OPEN_TAG = "<p class=\"u-price\">";
+std::string_view CDiskunionItemInfoHtmlParser::PRICE_CLOSE_TAG = "円<";
 std::string_view CDiskunionItemInfoHtmlParser::DATA_ID_ATTRIBUTE = "data-id";
 std::string_view CDiskunionItemInfoHtmlParser::DESCRIPTION_OPEN_TAG = "<ul class=\"u-bullet-note add__du__text_wordbreak\">";
 std::string_view CDiskunionItemInfoHtmlParser::DESCRIPTION_CLOSE_TAG = "</ul>";
 std::string_view CDiskunionItemInfoHtmlParser::LIST_OPEN_TAG = "<li>";
 std::string_view CDiskunionItemInfoHtmlParser::LIST_CLOSE_TAG = "</li>";
+std::string_view CDiskunionItemInfoHtmlParser::META_IMAGE_PROPERTY_TAG = "<meta property=\"og:image\"";
+std::string_view CDiskunionItemInfoHtmlParser::CONTENT_ATTRIBUTE = "content";
 
 CDiskunionItemDescription::CDiskunionItemDescription()
 {
@@ -74,6 +77,8 @@ std::string_view CDiskunionItemInfoHtmlParser::getItemInfoValue(std::string_view
 
 void CDiskunionItemInfoHtmlParser::parseItemInfo()
 {
+    _parser.skipBeginning(META_IMAGE_PROPERTY_TAG);
+    _itemDescription._imageUrl = _parser.getAttributeValue(CONTENT_ATTRIBUTE);
     _parser.skipBeginning(ITEM_SPEC_AREA_OPEN_TAG);
     _itemDescription._label = getLabel();
     _itemDescription._country = getItemInfoValue(COUNTRY_TAG);
@@ -87,7 +92,7 @@ std::string_view CDiskunionItemInfoHtmlParser::getPrice() const
 {
     CHtmlParser parser = _parser;
     parser.skipBeginning(PRICE_OPEN_TAG);
-    parser.skipEnding("<");
+    parser.skipEnding(PRICE_CLOSE_TAG);
     return parser.getContent();
 }
 

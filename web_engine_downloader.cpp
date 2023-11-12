@@ -3,6 +3,7 @@
 #include <list>
 #include <map>
 #include <random>
+#include <filesystem>
 #include "web_engine_downloader.h"
 
 namespace watchList
@@ -116,22 +117,24 @@ int CWebEngineDownloader::CImpl::getHugeBreakTime()
 
 void CWebEngineDownloader::CImpl::setDownloadDestination(WebKitDownload* download, std::string_view fileName) const
 {
-    if (!_downloadDir.empty())
+    auto it = _tasksInProcess.find(download);
+    if (it != _tasksInProcess.end())
     {
-        auto it = _tasksInProcess.find(download);
-        if (it != _tasksInProcess.end())
-        {
-            auto taskIt = it->second;
-            taskIt->targetResponsePath.clear();
-            taskIt->targetResponsePath.append(_downloadDir).append(fileName);
-            webkit_download_set_destination(download, taskIt->targetResponsePath.c_str());
-        }
+        auto taskIt = it->second;
+        taskIt->targetResponsePath.clear();
+        taskIt->targetResponsePath.append(_downloadDir).append(fileName);
+        webkit_download_set_destination(download, taskIt->targetResponsePath.c_str());
     }
 }
 
 void CWebEngineDownloader::CImpl::setDownloadDir(std::string_view dir)
 {
-    _downloadDir = dir;
+    // gtk accepts only absolut path
+    _downloadDir = std::filesystem::canonical(dir).string();
+    if (!_downloadDir.empty() && (_downloadDir.back() != '/'))
+    {
+        _downloadDir.push_back('/');
+    }
 }
 
 void CWebEngineDownloader::CImpl::processDownloadTask()
@@ -141,7 +144,10 @@ void CWebEngineDownloader::CImpl::processDownloadTask()
         WebKitDownload* download = webkit_web_view_download_uri(WEBKIT_WEB_VIEW(_webView), _nextTask->link.c_str());
         g_signal_connect(download, "failed", G_CALLBACK(onDownloadFailed), this);
         g_signal_connect(download, "finished", G_CALLBACK(onDownloadFinished), this);
-        g_signal_connect(download, "decide-destination", G_CALLBACK(onDecideDestination), this);
+        if (!_downloadDir.empty())
+        {
+            g_signal_connect(download, "decide-destination", G_CALLBACK(onDecideDestination), this);
+        }
 
         --_numStepsUntilHugeBreak;
         if (_numStepsUntilHugeBreak <= 0)
@@ -176,7 +182,7 @@ void CWebEngineDownloader::CImpl::completeDownloadTask(WebKitDownload* download,
         }
         _tasksInProcess.erase(it);
         _tasks.erase(taskIt);
-        if (_tasks.empty())
+        if (_tasks.empty() && _tasksInProcess.empty())
         {
             g_application_quit(G_APPLICATION(_app));
         }

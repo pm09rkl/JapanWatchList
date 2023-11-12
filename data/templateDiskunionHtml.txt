@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+   </head>
+   <body>
+      {% block itemQuery %}
+      <table style="border:1px solid #ccc;border-collapse:collapse;margin-bottom:10px;padding:4px;width:1000px" width="100%" cellspacing="0" cellpadding="0" border="0">
+      <tbody>
+         <tr style="background:#efefef;font-weight:bold">
+            <th style="border:1px solid #ccc;color:#333333 !important;padding:4px;text-align:left" align="left">
+		<img src="{{ itemImageLink }}" style="height:auto;max-width:240px;vertical-align:middle">
+            </th>
+            <th style="border:1px solid #ccc;color:#333333 !important;padding:4px;text-align:left" align="left">
+               <a href=" {{ itemLink }} " target="_blank" rel="noopener noreferrer"> {{ itemQueryDescription }}: 
+                  <span style="color:#336fd0"> {{ numUsedItems }} new</span> matches
+               </a>
+               <table>
+                  <tr>
+                     <td>Label</td>
+                     <td>{{ itemLabel }}</td>
+                  </tr>
+                  <tr>
+                     <td>Country</td>
+                     <td>{{ itemCountry }}</td>
+                  </tr>
+                  <tr>
+                     <td>Format</td>
+                     <td>{{ itemFormat }}</td>
+                  </tr>
+                  <tr>
+                     <td>Catalog</td>
+                     <td>{{ itemCatalogNumber }}</td>
+                  </tr>
+                  <tr>
+                     <td>Year</td>
+                     <td>{{ itemReleaseYear }}</td>
+                  </tr>
+                  <tr>
+                     <td>Barcode</td>
+                     <td>{{ itemBarcode }}</td>
+                  </tr>
+               </table>
+            </th>
+         </tr>
+         {% block usedItems %}
+         <tr>
+            <td style="border:1px solid #ccc;padding:4px;text-align:center;width:240px">
+               <span style="color:#d10f3c;font-weight:bold;margin-left:4px;width:240px">¥ {{ priceJpy }}</span>
+            </td>
+            <td style="border:1px solid #ccc;padding:4px">
+               <ul>
+                  {% block usedItem %}
+                  <li>{{ usedItemDescription }}</li>
+                  {% endblock %}
+               </ul>  
+            </td>
+         </tr>
+         {% endblock %}
+      </tbody>
+     {% endblock %}
+   </body>
+</html>

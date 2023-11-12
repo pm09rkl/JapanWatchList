@@ -9,6 +9,6 @@ namespace watchList
 
     std::string CDiskunionUrlFactory::createTarget(const CDiskunionItemQuery& itemQuery)
     {
-        return std::string("portal/ct/detail/").append(itemQuery.getCode());
+        return std::string("/portal/ct/detail/").append(itemQuery.getCode());
     }
 }

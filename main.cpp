@@ -21,6 +21,8 @@
 #include "async_https_downloader.h"
 #include "web_engine_downloader.h"
 
+#include <boost/algorithm/string/replace.hpp>
+
 using namespace watchList;
 using namespace boost;
 using namespace NL::Template;
@@ -105,7 +107,7 @@ static void insertYahooAuctions(YahooSearchQueryResults& searchQueryResults, CYa
 
 static void insertDiskunionItems(DiskunionItemQueryResults& itemQueryResults, CDiskunionItemQuery&& itemQuery,  CDiskunionItemInfo&& itemInfo)
 {
-    if (!itemInfo.getUsedItems().empty())
+    if (itemInfo.getDescription().isProblemItem() || !itemInfo.getUsedItems().empty())
     {
         itemQueryResults.emplace(std::move(itemQuery), std::move(itemInfo));
     }
@@ -431,9 +433,15 @@ static void createDiskunionHtmlFile(const DiskunionItemQueryResults& itemQueryRe
             const CDiskunionItemDescription& itemDescription = item.getDescription();
             const CDiskunionUsedItemInfo::List& usedItems = item.getUsedItems();
             
+            std::string itemQueryDescription = itemQuery.getName();
+            if (itemDescription.isProblemItem())
+            {
+                itemQueryDescription = "!!! PROBLEM ITEM !!! " + itemQueryDescription;
+            }
+            
             itemQueryNode.set("itemImageLink", itemDescription.getImageUrl());
             itemQueryNode.set("itemLink", CDiskunionUrlFactory::createUrl(itemQuery));
-            itemQueryNode.set("itemQueryDescription", itemQuery.getName());
+            itemQueryNode.set("itemQueryDescription", itemQueryDescription);
             itemQueryNode.set("numUsedItems", std::to_string(usedItems.size()));
             itemQueryNode.set("itemLabel", itemDescription.getLabel());
             itemQueryNode.set("itemCountry", itemDescription.getCountry());
@@ -552,50 +560,40 @@ static void watchDiskunionItems(const std::string& keywordsFileName, const std::
     createAllDiskunionItemsHtml(keywordsFileName, watchHistoryFileName);
 }
 
-static void testDiskunion()
+static void bookmarksToDiskunionItems()
 {
-    std::ifstream stream("./XAT-1245284991.html");
+    std::ifstream stream("./bookmarks.html");
+    std::ofstream streamItems("./diskunion_items.txt");
     std::stringstream response;
     
     std::copy(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>(), std::ostreambuf_iterator(response));
     
-    CDiskunionItemInfoHtmlParser parser(response);
-    CDiskunionItemInfo itemInfo(parser);
-    while (parser.hasNextUsedItem())
+    CHtmlContent content(response);
+    CHtmlParser parser = content.createParser();
+    parser.skipBeginning("DiskUnion Items</H3>");
+    parser.skipBeginning("<A");
+    while (parser.hasContent())
     {
-        const CDiskunionUsedItemInfo& usedItemInfo = parser.nextUsedItem();
-        itemInfo.getUsedItems().emplace_back(usedItemInfo);
+        std::string_view linkView = parser.getAttributeValue("HREF");
+        CHtmlParser nameParser = parser;
+        nameParser.skipBeginning(">");
+        nameParser.skipEnding("<");
+        std::string_view nameView = nameParser.getContent();
+        
+        std::string link(linkView.begin(), linkView.end());
+        std::string name(nameView.begin(), nameView.end());
+        
+        boost::replace_all(name, std::string("&#39;"), std::string("'"));
+        boost::replace_all(name, std::string("&quot;"), std::string("\""));
+        boost::replace_all(name, std::string("&amp;"), std::string("&"));
+        
+        boost::replace_all(link, std::string("https://diskunion.net/portal/ct/detail/"), std::string());
+        
+        streamItems << name << std::endl;
+        streamItems << link << std::endl;
+        
+        parser.skipBeginning("<A");
     }
-    
-    std::ofstream streamOut("./diskunion_out.txt");
-    streamOut << "EAN - " << itemInfo.getDescription().getBarcode() << std::endl;
-    streamOut << "catalog number - " << itemInfo.getDescription().getCatalogNumber() << std::endl;
-    streamOut << "country - " << itemInfo.getDescription().getCountry() << std::endl;
-    streamOut << "format - " << itemInfo.getDescription().getFormat() << std::endl;
-    streamOut << "label - " << itemInfo.getDescription().getLabel() << std::endl;
-    streamOut << "release year - " << itemInfo.getDescription().getReleaseYear() << std::endl;
-    streamOut << std::endl;
-    
-    for (const CDiskunionUsedItemInfo& usedItemInfo : itemInfo.getUsedItems())
-    {
-        streamOut << "id - " << usedItemInfo.getId() << std::endl;
-        streamOut << "price - " << usedItemInfo.getPriceJpy() << std::endl;
-        for (const std::string& description : usedItemInfo.getDescription())
-        {
-            streamOut << description << std::endl;
-        }
-        streamOut << std::endl;
-    }
-}
-
-static void mergeWatchHistories()
-{
-    WatchHistory watchHistory1 = getWatchHistory("./data/watchHistory_keywords.json");
-    WatchHistory watchHistory2 = getWatchHistory("./data/watchHistory_keywords_music.json");
-    
-    watchHistory1.insert(watchHistory2.begin(), watchHistory2.end());
-    
-    printWatchHistoryFile("./data/watchHistory_yahoo.json", watchHistory1);
 }
 
 int main(int argCount, char** argValues)
@@ -608,8 +606,8 @@ int main(int argCount, char** argValues)
         std::string watchHistoryYahooFileName = getWatchHistoryFileName(yahooKeywordsFileName, "yahoo");
         std::string watchHistoryDiskunionFileName = getWatchHistoryFileName(diskunionItemsFileName, "diskunion");
         
-        watchYahooAuctions(yahooKeywordsFileName, watchHistoryYahooFileName);
-        //watchDiskunionItems(diskunionItemsFileName, watchHistoryDiskunionFileName);
+        //watchYahooAuctions(yahooKeywordsFileName, watchHistoryYahooFileName);
+        watchDiskunionItems(diskunionItemsFileName, watchHistoryDiskunionFileName);
     }
     catch (const std::exception& ex)
     {

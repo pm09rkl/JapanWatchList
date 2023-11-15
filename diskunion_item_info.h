@@ -32,6 +32,9 @@ namespace watchList
         const std::string& getImageUrl() const
             { return _imageUrl; }
 
+        bool isProblemItem() const
+            { return _isProblemItem; }
+
     private:
         CDiskunionItemDescription();
         
@@ -43,6 +46,7 @@ namespace watchList
         std::string _releaseYear;        
         std::string _barcode;
         std::string _imageUrl;
+        bool _isProblemItem;
     };
     
     class CDiskunionUsedItemInfo

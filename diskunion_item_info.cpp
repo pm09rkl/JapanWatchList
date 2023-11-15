@@ -24,6 +24,7 @@ std::string_view CDiskunionItemInfoHtmlParser::META_IMAGE_PROPERTY_TAG = "<meta 
 std::string_view CDiskunionItemInfoHtmlParser::CONTENT_ATTRIBUTE = "content";
 
 CDiskunionItemDescription::CDiskunionItemDescription()
+    : _isProblemItem(false)
 {
 }
 
@@ -77,15 +78,23 @@ std::string_view CDiskunionItemInfoHtmlParser::getItemInfoValue(std::string_view
 
 void CDiskunionItemInfoHtmlParser::parseItemInfo()
 {
+    _itemDescription._isProblemItem = true;
     _parser.skipBeginning(META_IMAGE_PROPERTY_TAG);
-    _itemDescription._imageUrl = _parser.getAttributeValue(CONTENT_ATTRIBUTE);
-    _parser.skipBeginning(ITEM_SPEC_AREA_OPEN_TAG);
-    _itemDescription._label = getLabel();
-    _itemDescription._country = getItemInfoValue(COUNTRY_TAG);
-    _itemDescription._format = getItemInfoValue(FORMAT_TAG);
-    _itemDescription._catalogNumber = getItemInfoValue(CATALOG_NUMBER_TAG);
-    _itemDescription._releaseYear = getReleaseYear();
-    _itemDescription._barcode = getItemInfoValue(BARCODE_TAG);
+    if (_parser.hasContent())
+    {
+        _itemDescription._imageUrl = _parser.getAttributeValue(CONTENT_ATTRIBUTE);
+        _parser.skipBeginning(ITEM_SPEC_AREA_OPEN_TAG);
+        if (_parser.hasContent())
+        {
+            _itemDescription._label = getLabel();
+            _itemDescription._country = getItemInfoValue(COUNTRY_TAG);
+            _itemDescription._format = getItemInfoValue(FORMAT_TAG);
+            _itemDescription._catalogNumber = getItemInfoValue(CATALOG_NUMBER_TAG);
+            _itemDescription._releaseYear = getReleaseYear();
+            _itemDescription._barcode = getItemInfoValue(BARCODE_TAG);
+            _itemDescription._isProblemItem = false;
+        }
+    }
 }
 
 std::string_view CDiskunionItemInfoHtmlParser::getPrice() const

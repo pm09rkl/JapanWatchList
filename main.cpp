@@ -119,7 +119,7 @@ public:
 public:
     CYahooAddAllAuctionsTask(const CYahooSearchQuery& searchQuery, CAsyncHttpsDownloader& downloader);
     
-    void doTask(YahooSearchQueryResults& searchQueryResults, WatchHistory& watchHistoryNow);
+    void doTask(YahooSearchQueryResults& searchQueryResults, WatchHistory& watchHistory);
     
 private:
     static int maxNewAuctionsToWatch;
@@ -137,7 +137,7 @@ CYahooAddAllAuctionsTask::CYahooAddAllAuctionsTask(const CYahooSearchQuery& sear
     _response = downloader.asyncDownload(CYahooUrlFactory::createTarget(_searchQuery));
 }
 
-void CYahooAddAllAuctionsTask::doTask(YahooSearchQueryResults& searchQueryResults, WatchHistory& watchHistoryNow)
+void CYahooAddAllAuctionsTask::doTask(YahooSearchQueryResults& searchQueryResults, WatchHistory& watchHistory)
 {
     CYahooAuctionInfo::List newAuctions;    
     CAsyncHttpsDownloader::ResponseType response = _response.get();
@@ -149,7 +149,7 @@ void CYahooAddAllAuctionsTask::doTask(YahooSearchQueryResults& searchQueryResult
         {
             newAuctions.emplace_back(info);
         }
-        watchHistoryNow.insert(info.getId());
+        watchHistory.insert(info.getId());
     }
     insertYahooAuctions(searchQueryResults, std::move(_searchQuery), std::move(newAuctions));
 }
@@ -162,7 +162,7 @@ public:
 public:
     CYahooAddNewAuctionsTask(const CYahooSearchQuery& searchQuery, CAsyncHttpsDownloader& downloader);
     
-    void doTask(YahooSearchQueryResults& searchQueryResults, WatchHistory& watchHistoryNow, const WatchHistory& watchHistory);
+    void doTask(YahooSearchQueryResults& searchQueryResults, WatchHistory& watchHistory);
     
 private:
     CYahooSearchQuery _searchQuery;
@@ -175,7 +175,7 @@ CYahooAddNewAuctionsTask::CYahooAddNewAuctionsTask(const CYahooSearchQuery& sear
     _response = downloader.asyncDownload(CYahooUrlFactory::createTarget(_searchQuery));
 }
 
-void CYahooAddNewAuctionsTask::doTask(YahooSearchQueryResults& searchQueryResults, WatchHistory& watchHistoryNow, const WatchHistory& watchHistory)
+void CYahooAddNewAuctionsTask::doTask(YahooSearchQueryResults& searchQueryResults, WatchHistory& watchHistory)
 {                   
     CYahooAuctionInfo::List newAuctions;
     CAsyncHttpsDownloader::ResponseType response = _response.get();
@@ -187,8 +187,8 @@ void CYahooAddNewAuctionsTask::doTask(YahooSearchQueryResults& searchQueryResult
         if (it == watchHistory.end())
         {
             newAuctions.emplace_back(auctionInfo);
+            watchHistory.insert(auctionInfo.getId());
         }
-        watchHistoryNow.insert(auctionInfo.getId());
     }
     insertYahooAuctions(searchQueryResults, std::move(_searchQuery), std::move(newAuctions));
 }
@@ -202,7 +202,7 @@ static void printWatchHistoryFile(const std::string& watchHistoryFileName, const
     boost_ext::pretty_print(watchHistoryFile, watchHistoryValue);
 }
 
-static std::string createHtmlPath(const std::string& queryFileName)
+static std::string createHtmlPath(const std::string& queryFileName, std::string_view prefix)
 {
     posix_time::ptime time = posix_time::second_clock::local_time();
     posix_time::time_facet* facet = new posix_time::time_facet("%d-%m-%Y_%H-%M-%S");
@@ -211,16 +211,16 @@ static std::string createHtmlPath(const std::string& queryFileName)
     std::string queryFileStem = std::filesystem::path(queryFileName).stem();
     std::stringstream stream;
     stream.imbue(std::locale(stream.getloc(), facet));
-    stream << DATA_DIR << queryFileStem << "_" << time << ".html";
+    stream << DATA_DIR << prefix << "_" << queryFileStem << "_" << time << ".html";
 
     return stream.str();
 }
 
-static void renderHtmlFile(Template& htmlTemplate, const std::string& queryFileName)
+static void renderHtmlFile(Template& htmlTemplate, const std::string& queryFileName, std::string_view prefix)
 {
     std::ofstream htmlFile;
     htmlFile.exceptions(std::ios::failbit | std::ios::badbit);
-    htmlFile.open(createHtmlPath(queryFileName));
+    htmlFile.open(createHtmlPath(queryFileName, prefix));
     if (htmlFile.is_open())
     {
         htmlTemplate.render(htmlFile);
@@ -264,7 +264,7 @@ static void createYahooHtmlFile(const YahooSearchQueryResults& searchQueryResult
             searchQueryCount++;
         }
         
-        renderHtmlFile(htmlTemplate, keywordsFileName);
+        renderHtmlFile(htmlTemplate, keywordsFileName, "yahooAuctions");
     }
 }
 
@@ -336,12 +336,11 @@ static void createYahooNewAuctionsHtml(const std::string& keywordsFileName, cons
     
     YahooSearchQueryResults searchQueryResults;
     WatchHistory watchHistory = getWatchHistory(watchHistoryFileName);
-    WatchHistory watchHistoryNow;
    
-    doTasks(tasks, searchQueryResults, watchHistoryNow, watchHistory);    
+    doTasks(tasks, searchQueryResults, watchHistory);    
     threads.join();
 
-    printWatchHistoryFile(watchHistoryFileName, watchHistoryNow);
+    printWatchHistoryFile(watchHistoryFileName, watchHistory);
     createYahooHtmlFile(searchQueryResults, keywordsFileName);
 }
 
@@ -386,7 +385,7 @@ static void getInputFileNames(int argCount, char** argValues, std::string& yahoo
     }
 }
 
-static std::string getWatchHistoryFileName(std::filesystem::path inputFileName)
+static std::string getWatchHistoryFileName(std::filesystem::path inputFileName, std::string_view watchListName)
 {
     std::string watchHistoryFileName;
     if (inputFileName.has_parent_path())
@@ -397,12 +396,8 @@ static std::string getWatchHistoryFileName(std::filesystem::path inputFileName)
     {
         watchHistoryFileName += DATA_DIR_WITHOUT_SLASH;
     }
-    watchHistoryFileName += "/watchHistory";
-    if (inputFileName.has_stem())
-    {
-        watchHistoryFileName += "_";
-        watchHistoryFileName += inputFileName.stem();
-    }
+    watchHistoryFileName += "/watchHistory_";
+    watchHistoryFileName += watchListName;
     watchHistoryFileName += ".json";
     return watchHistoryFileName;
 }
@@ -473,7 +468,7 @@ static void createDiskunionHtmlFile(const DiskunionItemQueryResults& itemQueryRe
             itemQueryCount++;
         }
 
-        renderHtmlFile(htmlTemplate, itemsFileName);
+        renderHtmlFile(htmlTemplate, itemsFileName, "diskunionItems");
     }
 }
 
@@ -485,7 +480,7 @@ public:
 public:
     CDiskunionAddAllItemsTask(const CDiskunionItemQuery& itemQuery, CWebEngineDownloader& downloader);
     
-    void doTask(DiskunionItemQueryResults& itemQueryResults, WatchHistory& watchHistoryNow);
+    void doTask(DiskunionItemQueryResults& itemQueryResults, WatchHistory& watchHistory);
     
 private:
     CDiskunionItemQuery _itemQuery;
@@ -498,7 +493,7 @@ CDiskunionAddAllItemsTask::CDiskunionAddAllItemsTask(const CDiskunionItemQuery& 
     _responsePath = downloader.addDownload(CDiskunionUrlFactory::createUrl(itemQuery));
 }
 
-void CDiskunionAddAllItemsTask::doTask(DiskunionItemQueryResults& itemQueryResults, WatchHistory& watchHistoryNow)
+void CDiskunionAddAllItemsTask::doTask(DiskunionItemQueryResults& itemQueryResults, WatchHistory& watchHistory)
 {
     std::ifstream responseFile;
     responseFile.exceptions(std::ios::failbit | std::ios::badbit);
@@ -513,7 +508,7 @@ void CDiskunionAddAllItemsTask::doTask(DiskunionItemQueryResults& itemQueryResul
     {
         const CDiskunionUsedItemInfo& usedItemInfo = parser.nextUsedItem();
         itemInfo.getUsedItems().emplace_back(usedItemInfo);
-        watchHistoryNow.insert(usedItemInfo.getId());
+        watchHistory.insert(usedItemInfo.getId());
     }
     insertDiskunionItems(itemQueryResults, std::move(_itemQuery), std::move(itemInfo));
 }
@@ -546,9 +541,9 @@ static void createAllDiskunionItemsHtml(const std::string& itemsFileName, const 
     downloader.start();
 
     DiskunionItemQueryResults itemQueryResults;
-    WatchHistory watchHistoryNow;    
-    doTasks(tasks, itemQueryResults, watchHistoryNow);
-    printWatchHistoryFile(watchHistoryFileName, watchHistoryNow);
+    WatchHistory watchHistory;    
+    doTasks(tasks, itemQueryResults, watchHistory);
+    printWatchHistoryFile(watchHistoryFileName, watchHistory);
     createDiskunionHtmlFile(itemQueryResults, itemsFileName);    
 }
 
@@ -593,6 +588,16 @@ static void testDiskunion()
     }
 }
 
+static void mergeWatchHistories()
+{
+    WatchHistory watchHistory1 = getWatchHistory("./data/watchHistory_keywords.json");
+    WatchHistory watchHistory2 = getWatchHistory("./data/watchHistory_keywords_music.json");
+    
+    watchHistory1.insert(watchHistory2.begin(), watchHistory2.end());
+    
+    printWatchHistoryFile("./data/watchHistory_yahoo.json", watchHistory1);
+}
+
 int main(int argCount, char** argValues)
 {    
     try
@@ -600,11 +605,11 @@ int main(int argCount, char** argValues)
         std::string yahooKeywordsFileName;
         std::string diskunionItemsFileName;
         getInputFileNames(argCount, argValues, yahooKeywordsFileName, diskunionItemsFileName);
-        std::string watchHistoryYahooFileName = getWatchHistoryFileName(yahooKeywordsFileName);
-        std::string watchHistoryDiskunionFileName = getWatchHistoryFileName(diskunionItemsFileName);
+        std::string watchHistoryYahooFileName = getWatchHistoryFileName(yahooKeywordsFileName, "yahoo");
+        std::string watchHistoryDiskunionFileName = getWatchHistoryFileName(diskunionItemsFileName, "diskunion");
         
-        //watchYahooAuctions(yahooKeywordsFileName, watchHistoryYahooFileName);
-        watchDiskunionItems(diskunionItemsFileName, watchHistoryDiskunionFileName);
+        watchYahooAuctions(yahooKeywordsFileName, watchHistoryYahooFileName);
+        //watchDiskunionItems(diskunionItemsFileName, watchHistoryDiskunionFileName);
     }
     catch (const std::exception& ex)
     {

@@ -7,7 +7,9 @@ project(japanwatchlist)
 add_subdirectory(NLTemplate)
 add_executable(japanwatchlist
     main.cpp
+    app_settings.cpp
     async_https_downloader.cpp
+    cmd_line_params_parser.cpp
     diskunion_item_info.cpp
     diskunion_item_query.cpp
     diskunion_url_factory.cpp

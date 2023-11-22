@@ -173,7 +173,8 @@ void CWebEngineDownloader::CImpl::completeDownloadTask(WebKitDownload* download,
         auto taskIt = it->second;
         if (error != nullptr)
         {
-            taskIt->responsePath.set_exception(std::make_exception_ptr(std::runtime_error(error->message)));
+            std::string message = "Error downloading " + taskIt->link + " : " + error->message;
+            taskIt->responsePath.set_exception(std::make_exception_ptr(std::runtime_error(message)));
         }
         else
         {

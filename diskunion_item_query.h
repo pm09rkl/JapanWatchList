@@ -14,6 +14,9 @@ namespace watchList
         const std::string& getName() const
             { return _name; }
             
+        const std::string& getUrl() const
+            { return _url; }
+            
         const std::string& getCode() const
             { return _code; }
             
@@ -26,6 +29,7 @@ namespace watchList
     private:
         std::string _name;
         std::string _code;
+        std::string _url;
     };
     
     class CDiskunionFileItemQueryParser

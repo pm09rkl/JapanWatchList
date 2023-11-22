@@ -33,7 +33,16 @@ bool CDiskunionFileItemQueryParser::hasNext()
     { 
         return false;    
     }
-    return std::getline(_itemsFile, _currentItemQuery._name) && std::getline(_itemsFile, _currentItemQuery._code);
+    if (std::getline(_itemsFile, _currentItemQuery._name) && std::getline(_itemsFile, _currentItemQuery._url))
+    {
+        std::size_t codePos = _currentItemQuery._url.rfind('/');
+        if ((codePos != std::string::npos) && (++codePos < _currentItemQuery._url.size()))
+        {
+            _currentItemQuery._code = _currentItemQuery._url.substr(codePos);
+        }
+        return true;
+    }
+    return false;
 }
 
 }

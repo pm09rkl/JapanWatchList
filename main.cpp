@@ -11,6 +11,7 @@
 #include <queue>
 #include <filesystem>
 #include "NLTemplate.h"
+#include "app_settings.h"
 #include "diskunion_url_factory.h"
 #include "diskunion_item_info.h"
 #include "diskunion_item_query.h"
@@ -20,18 +21,12 @@
 #include "json_pretty_print.h"
 #include "async_https_downloader.h"
 #include "web_engine_downloader.h"
-
+#include "cmd_line_params_parser.h"
 #include <boost/algorithm/string/replace.hpp>
 
 using namespace watchList;
 using namespace boost;
 using namespace NL::Template;
-
-static const std::string DATA_DIR_WITHOUT_SLASH = "./data";
-static const std::string DATA_DIR = DATA_DIR_WITHOUT_SLASH + '/';
-static const std::string DISKUNION_DOWNLOADS_DIR = "./diskunionTmp/";
-static const std::string TEMPLATE_YAHOO_PATH = DATA_DIR + "templateYahooHtml.txt";
-static const std::string TEMPLATE_DISKUNION_PATH = DATA_DIR + "templateDiskunionHtml.txt";
 
 typedef std::map<CYahooSearchQuery, CYahooAuctionInfo::List> YahooSearchQueryResults;
 typedef std::map<CDiskunionItemQuery, CDiskunionItemInfo> DiskunionItemQueryResults;
@@ -111,6 +106,23 @@ static void insertDiskunionItems(DiskunionItemQueryResults& itemQueryResults, CD
     {
         itemQueryResults.emplace(std::move(itemQuery), std::move(itemInfo));
     }
+}
+
+static std::string getWatchHistoryFileName(std::filesystem::path inputFileName, std::string_view watchListName)
+{
+    std::string watchHistoryFileName;
+    if (inputFileName.has_parent_path())
+    {
+        watchHistoryFileName += inputFileName.parent_path();
+    }
+    else
+    {
+        watchHistoryFileName += DATA_DIR_WITHOUT_SLASH;
+    }
+    watchHistoryFileName += "/watchHistory_";
+    watchHistoryFileName += watchListName;
+    watchHistoryFileName += ".json";
+    return watchHistoryFileName;
 }
 
 class CYahooAddAllAuctionsTask
@@ -204,7 +216,7 @@ static void printWatchHistoryFile(const std::string& watchHistoryFileName, const
     boost_ext::pretty_print(watchHistoryFile, watchHistoryValue);
 }
 
-static std::string createHtmlPath(const std::string& queryFileName, std::string_view prefix)
+static std::string createHtmlPath(const std::string& queryFileName)
 {
     posix_time::ptime time = posix_time::second_clock::local_time();
     posix_time::time_facet* facet = new posix_time::time_facet("%d-%m-%Y_%H-%M-%S");
@@ -213,16 +225,16 @@ static std::string createHtmlPath(const std::string& queryFileName, std::string_
     std::string queryFileStem = std::filesystem::path(queryFileName).stem();
     std::stringstream stream;
     stream.imbue(std::locale(stream.getloc(), facet));
-    stream << DATA_DIR << prefix << "_" << queryFileStem << "_" << time << ".html";
+    stream << DATA_DIR << queryFileStem << "_" << time << ".html";
 
     return stream.str();
 }
 
-static void renderHtmlFile(Template& htmlTemplate, const std::string& queryFileName, std::string_view prefix)
+static void renderHtmlFile(Template& htmlTemplate, const std::string& queryFileName)
 {
     std::ofstream htmlFile;
     htmlFile.exceptions(std::ios::failbit | std::ios::badbit);
-    htmlFile.open(createHtmlPath(queryFileName, prefix));
+    htmlFile.open(createHtmlPath(queryFileName));
     if (htmlFile.is_open())
     {
         htmlTemplate.render(htmlFile);
@@ -266,7 +278,7 @@ static void createYahooHtmlFile(const YahooSearchQueryResults& searchQueryResult
             searchQueryCount++;
         }
         
-        renderHtmlFile(htmlTemplate, keywordsFileName, "yahooAuctions");
+        renderHtmlFile(htmlTemplate, keywordsFileName);
     }
 }
 
@@ -346,66 +358,9 @@ static void createYahooNewAuctionsHtml(const std::string& keywordsFileName, cons
     createYahooHtmlFile(searchQueryResults, keywordsFileName);
 }
 
-static bool parseFileName(std::string_view argName, std::string_view arg, std::string& fileName)
+static void watchYahooAuctions(const std::string& keywordsFileName)
 {
-    if (arg.rfind(argName, 0) == 0)
-    {
-        std::string_view argFileName = arg.substr(argName.size());
-        std::filesystem::path argFilePath(argFileName);
-        fileName.clear();
-        if (!argFilePath.has_parent_path())
-        {
-            fileName += DATA_DIR;
-        }
-        fileName += argFileName;
-        return true;
-    }
-    return false;
-}
-
-static void getInputFileNames(int argCount, char** argValues, std::string& yahooKeywordsFileName, std::string& diskunionItemsFileName)
-{
-    bool hasYahooKeywordsFileName = false;
-    bool hasDiskunionItemsFileName = false;
-    
-    for (int i = 1; i < argCount; ++i)
-    {
-        hasYahooKeywordsFileName = hasYahooKeywordsFileName || parseFileName("-yahoo:", argValues[i], yahooKeywordsFileName);
-        hasDiskunionItemsFileName = hasDiskunionItemsFileName || parseFileName("-diskunion:", argValues[i], diskunionItemsFileName);
-    }
-    
-    if (!hasYahooKeywordsFileName)
-    {
-        yahooKeywordsFileName += DATA_DIR;
-        yahooKeywordsFileName += "keywords.txt";
-    }
-
-    if (!hasDiskunionItemsFileName)
-    {
-        diskunionItemsFileName += DATA_DIR;
-        diskunionItemsFileName += "diskunion_items.txt";
-    }
-}
-
-static std::string getWatchHistoryFileName(std::filesystem::path inputFileName, std::string_view watchListName)
-{
-    std::string watchHistoryFileName;
-    if (inputFileName.has_parent_path())
-    {
-        watchHistoryFileName += inputFileName.parent_path();
-    }
-    else
-    {
-        watchHistoryFileName += DATA_DIR_WITHOUT_SLASH;
-    }
-    watchHistoryFileName += "/watchHistory_";
-    watchHistoryFileName += watchListName;
-    watchHistoryFileName += ".json";
-    return watchHistoryFileName;
-}
-
-static void watchYahooAuctions(const std::string& keywordsFileName, const std::string& watchHistoryFileName)
-{
+    std::string watchHistoryFileName = getWatchHistoryFileName(keywordsFileName, "yahoo");
     if (std::filesystem::exists(watchHistoryFileName))
     {
         createYahooNewAuctionsHtml(keywordsFileName, watchHistoryFileName);
@@ -440,7 +395,7 @@ static void createDiskunionHtmlFile(const DiskunionItemQueryResults& itemQueryRe
             }
             
             itemQueryNode.set("itemImageLink", itemDescription.getImageUrl());
-            itemQueryNode.set("itemLink", CDiskunionUrlFactory::createUrl(itemQuery));
+            itemQueryNode.set("itemLink", itemQuery.getUrl());
             itemQueryNode.set("itemQueryDescription", itemQueryDescription);
             itemQueryNode.set("numUsedItems", std::to_string(usedItems.size()));
             itemQueryNode.set("itemLabel", itemDescription.getLabel());
@@ -476,7 +431,7 @@ static void createDiskunionHtmlFile(const DiskunionItemQueryResults& itemQueryRe
             itemQueryCount++;
         }
 
-        renderHtmlFile(htmlTemplate, itemsFileName, "diskunionItems");
+        renderHtmlFile(htmlTemplate, itemsFileName);
     }
 }
 
@@ -486,26 +441,51 @@ public:
     typedef std::queue<CDiskunionAddAllItemsTask> Queue;
 
 public:
-    CDiskunionAddAllItemsTask(const CDiskunionItemQuery& itemQuery, CWebEngineDownloader& downloader);
+    CDiskunionAddAllItemsTask(const CDiskunionItemQuery& itemQuery, CWebEngineDownloader& downloader, bool isContinueLastSession);
     
-    void doTask(DiskunionItemQueryResults& itemQueryResults, WatchHistory& watchHistory);
+    void doTask(DiskunionItemQueryResults& itemQueryResults, WatchHistory& watchHistory, bool isIgnoreHistory);
     
 private:
     CDiskunionItemQuery _itemQuery;
     CWebEngineDownloader::FutureResponseType _responsePath;
+    std::string _responsePathReady;
 };
 
-CDiskunionAddAllItemsTask::CDiskunionAddAllItemsTask(const CDiskunionItemQuery& itemQuery, CWebEngineDownloader& downloader)
+CDiskunionAddAllItemsTask::CDiskunionAddAllItemsTask(const CDiskunionItemQuery& itemQuery, CWebEngineDownloader& downloader, bool isContinueLastSession)
     : _itemQuery(itemQuery)
 {
-    _responsePath = downloader.addDownload(CDiskunionUrlFactory::createUrl(itemQuery));
+    bool isAddDownload = true;
+    if (isContinueLastSession)
+    {
+        _responsePathReady = DISKUNION_DOWNLOADS_DIR + itemQuery.getCode() + ".html";
+        if (std::filesystem::exists(_responsePathReady))
+        {
+            isAddDownload = false;
+        }
+        else
+        {
+            _responsePathReady.clear();
+        }
+    }
+
+    if (isAddDownload)
+    {
+        _responsePathReady.clear();
+        _responsePath = downloader.addDownload(itemQuery.getUrl());
+    }
 }
 
-void CDiskunionAddAllItemsTask::doTask(DiskunionItemQueryResults& itemQueryResults, WatchHistory& watchHistory)
+void CDiskunionAddAllItemsTask::doTask(DiskunionItemQueryResults& itemQueryResults, WatchHistory& watchHistory, bool isIgnoreHistory)
 {
     std::ifstream responseFile;
     responseFile.exceptions(std::ios::failbit | std::ios::badbit);
-    responseFile.open(_responsePath.get());
+    
+    if (_responsePathReady.empty())
+    {
+        _responsePathReady = _responsePath.get();
+    }
+    
+    responseFile.open(_responsePathReady);
     
     std::stringstream response;
     std::copy(std::istreambuf_iterator<char>(responseFile), std::istreambuf_iterator<char>(), std::ostreambuf_iterator(response));
@@ -515,8 +495,11 @@ void CDiskunionAddAllItemsTask::doTask(DiskunionItemQueryResults& itemQueryResul
     while (parser.hasNextUsedItem())
     {
         const CDiskunionUsedItemInfo& usedItemInfo = parser.nextUsedItem();
-        itemInfo.getUsedItems().emplace_back(usedItemInfo);
-        watchHistory.insert(usedItemInfo.getId());
+        if (isIgnoreHistory || (watchHistory.find(usedItemInfo.getId()) == watchHistory.end()))
+        {
+            itemInfo.getUsedItems().emplace_back(usedItemInfo);
+            watchHistory.insert(usedItemInfo.getId());            
+        }
     }
     insertDiskunionItems(itemQueryResults, std::move(_itemQuery), std::move(itemInfo));
 }
@@ -535,29 +518,38 @@ static void prepareDiskunionDownloadsDir()
     }
 }
 
-static void createAllDiskunionItemsHtml(const std::string& itemsFileName, const std::string& watchHistoryFileName)
+static void createDiskunionItemsHtml(const std::string& itemsFileName, const std::string& watchHistoryFileName, bool isContinueLastSession)
 {
     CDiskunionAddAllItemsTask::Queue tasks;
     CWebEngineDownloader downloader;
     CDiskunionFileItemQueryParser parser(itemsFileName);
     while (parser.hasNext())
     {
-        tasks.emplace(parser.next(), downloader);
+        tasks.emplace(parser.next(), downloader, isContinueLastSession);
     }
-    prepareDiskunionDownloadsDir();
+    if (!isContinueLastSession)
+    {
+        prepareDiskunionDownloadsDir();
+    }
     downloader.setDownloadDir(DISKUNION_DOWNLOADS_DIR);
     downloader.start();
 
     DiskunionItemQueryResults itemQueryResults;
-    WatchHistory watchHistory;    
-    doTasks(tasks, itemQueryResults, watchHistory);
+    WatchHistory watchHistory;
+    if (std::filesystem::exists(watchHistoryFileName))
+    {
+        watchHistory = getWatchHistory(watchHistoryFileName);
+    }
+    bool isIgnoreHistory = watchHistory.empty();
+    doTasks(tasks, itemQueryResults, watchHistory, isIgnoreHistory);
     printWatchHistoryFile(watchHistoryFileName, watchHistory);
     createDiskunionHtmlFile(itemQueryResults, itemsFileName);    
 }
 
-static void watchDiskunionItems(const std::string& keywordsFileName, const std::string& watchHistoryFileName)
+static void watchDiskunionItems(const std::string& diskunionItemsFileName, bool isContinueLastSession)
 {
-    createAllDiskunionItemsHtml(keywordsFileName, watchHistoryFileName);
+    std::string watchHistoryFileName = getWatchHistoryFileName(diskunionItemsFileName, "diskunion");
+    createDiskunionItemsHtml(diskunionItemsFileName, watchHistoryFileName, isContinueLastSession);
 }
 
 static void bookmarksToDiskunionItems()
@@ -587,7 +579,7 @@ static void bookmarksToDiskunionItems()
         boost::replace_all(name, std::string("&quot;"), std::string("\""));
         boost::replace_all(name, std::string("&amp;"), std::string("&"));
         
-        boost::replace_all(link, std::string("https://diskunion.net/portal/ct/detail/"), std::string());
+        //boost::replace_all(link, std::string("https://diskunion.net/portal/ct/detail/"), std::string());
         
         streamItems << name << std::endl;
         streamItems << link << std::endl;
@@ -600,14 +592,15 @@ int main(int argCount, char** argValues)
 {    
     try
     {
-        std::string yahooKeywordsFileName;
-        std::string diskunionItemsFileName;
-        getInputFileNames(argCount, argValues, yahooKeywordsFileName, diskunionItemsFileName);
-        std::string watchHistoryYahooFileName = getWatchHistoryFileName(yahooKeywordsFileName, "yahoo");
-        std::string watchHistoryDiskunionFileName = getWatchHistoryFileName(diskunionItemsFileName, "diskunion");
-        
-        //watchYahooAuctions(yahooKeywordsFileName, watchHistoryYahooFileName);
-        watchDiskunionItems(diskunionItemsFileName, watchHistoryDiskunionFileName);
+        CCmdLineParamsParser parser(argCount, argValues);
+        if (parser.isWatchYahoo())
+        {
+            watchYahooAuctions(parser.getYahooKeywordsFilePath());
+        }
+        if (parser.isWatchDiskunion())
+        {
+            watchDiskunionItems(parser.getDiskunionItemsFilePath(), parser.isContinueDiskunionLastSession());
+        }
     }
     catch (const std::exception& ex)
     {

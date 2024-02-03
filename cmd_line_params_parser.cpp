@@ -6,7 +6,7 @@ namespace watchList
 {
 CCmdLineParamsParser::CCmdLineParamsParser(int argCount, char ** argValues)
     : _isWatchDiskunion(false)
-    , _isContinueDiskunionLastSession(false)
+    , _isContinueLastSession(false)
     , _isWatchYahoo(true)
     , _yahooKeywordsFilePath(DATA_DIR + YAHOO_KEYWORDS_DEFAULT_FILE_NAME)
     , _diskunionItemsFilePath(DATA_DIR + DISKUNION_ITEMS_DEFAULT_FILE_NAME)
@@ -60,9 +60,9 @@ void CCmdLineParamsParser::parse(int argCount, char** argValues)
             else
             {
                 isParseFileName = false;
-                if (argValue == "--diskunion-continue")
+                if (argValue == "--continue")
                 {
-                    _isContinueDiskunionLastSession = true;
+                    _isContinueLastSession = true;
                 }
             }
             if (isParseFileName)

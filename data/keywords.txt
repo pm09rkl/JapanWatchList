@@ -134,6 +134,7 @@ Necrosanct -mp3
 Nuclear Assault -mp3
 Num Skull -mp3
 Obituary -mp3
+Offspring Americana -mp3
 Onslaught -mp3
 Over kill -mp3
 Overkill -mp3

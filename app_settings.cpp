@@ -4,7 +4,7 @@ namespace watchList
 {
     const std::string DATA_DIR_WITHOUT_SLASH = "./data";
     const std::string DATA_DIR = DATA_DIR_WITHOUT_SLASH + '/';
-    const std::string DISKUNION_DOWNLOADS_DIR = "./diskunionTmp/";
+    const std::string DOWNLOADS_DIR = "./downloads/";
     const std::string TEMPLATE_YAHOO_PATH = DATA_DIR + "templateYahooHtml.txt";
     const std::string TEMPLATE_DISKUNION_PATH = DATA_DIR + "templateDiskunionHtml.txt";
     const std::string YAHOO_KEYWORDS_DEFAULT_FILE_NAME = "yahoo_keywords.txt";

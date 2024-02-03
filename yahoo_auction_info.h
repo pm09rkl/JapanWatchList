@@ -40,7 +40,7 @@ namespace watchList
     class CYahooAuctionInfoHtmlParser
     {
     public:
-        CYahooAuctionInfoHtmlParser(const CAsyncHttpsDownloader::ResponseType& response);
+        CYahooAuctionInfoHtmlParser(const std::stringstream& response);
         
     public:
         bool hasNext();

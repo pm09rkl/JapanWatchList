@@ -16,7 +16,7 @@ public:
     static std::shared_ptr<CImpl> create();
     
 public:
-    FutureResponseType addDownload(std::string_view link);
+    FutureResponseType addDownload(std::string_view link, std::string_view responseName);
     void start();
     void setDownloadDir(std::string_view dir);    
 
@@ -42,9 +42,10 @@ private:
     {
         typedef std::list<DownloadTask> List;
         
-        DownloadTask(std::string_view link);
+        DownloadTask(std::string_view link, std::string_view responseName);
         
         std::string link;
+        std::string responseName;
         std::string targetResponsePath;
         std::promise<std::string> responsePath;
     };
@@ -66,8 +67,9 @@ private:
     int _numStepsUntilHugeBreak;
 };
 
-CWebEngineDownloader::CImpl::DownloadTask::DownloadTask(std::string_view link)
+CWebEngineDownloader::CImpl::DownloadTask::DownloadTask(std::string_view link, std::string_view responseName)
     : link(link)
+    , responseName(responseName)
 {
 }
 
@@ -82,9 +84,9 @@ CWebEngineDownloader::CImpl::CImpl()
 {
 }
 
-CWebEngineDownloader::FutureResponseType CWebEngineDownloader::CImpl::addDownload(std::string_view link)
+CWebEngineDownloader::FutureResponseType CWebEngineDownloader::CImpl::addDownload(std::string_view link, std::string_view responseName)
 {
-    _tasks.emplace(_tasks.end(), link);
+    _tasks.emplace(_tasks.end(), link, responseName);
     return _tasks.back().responsePath.get_future();
 }
 
@@ -122,7 +124,8 @@ void CWebEngineDownloader::CImpl::setDownloadDestination(WebKitDownload* downloa
     {
         auto taskIt = it->second;
         taskIt->targetResponsePath.clear();
-        taskIt->targetResponsePath.append(_downloadDir).append(fileName);
+        taskIt->targetResponsePath.append(_downloadDir);
+        taskIt->targetResponsePath.append(taskIt->responseName.empty() ? fileName : taskIt->responseName);
         webkit_download_set_destination(download, taskIt->targetResponsePath.c_str());
     }
 }
@@ -267,10 +270,10 @@ void CWebEngineDownloader::waitForCompletion()
     }    
 }
 
-CWebEngineDownloader::FutureResponseType CWebEngineDownloader::addDownload(std::string_view link)
+CWebEngineDownloader::FutureResponseType CWebEngineDownloader::addDownload(std::string_view link, std::string_view responseName)
 {
     waitForCompletion();
-    return _pImpl->addDownload(link);
+    return _pImpl->addDownload(link, responseName);
 }
 
 void CWebEngineDownloader::start()

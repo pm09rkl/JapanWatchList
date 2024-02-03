@@ -12,7 +12,7 @@ CYahooAuctionInfo::CYahooAuctionInfo()
 {
 }
 
-CYahooAuctionInfoHtmlParser::CYahooAuctionInfoHtmlParser(const CAsyncHttpsDownloader::ResponseType& response)
+CYahooAuctionInfoHtmlParser::CYahooAuctionInfoHtmlParser(const std::stringstream& response)
     : _content(response)
 {
     _parser = _content.createParser();

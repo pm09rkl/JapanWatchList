@@ -125,86 +125,105 @@ static std::string getWatchHistoryFileName(std::filesystem::path inputFileName, 
     return watchHistoryFileName;
 }
 
-class CYahooAddAllAuctionsTask
+class CDownloadTask
 {
 public:
-    typedef std::queue<CYahooAddAllAuctionsTask> Queue;
-
-public:
-    CYahooAddAllAuctionsTask(const CYahooSearchQuery& searchQuery, CAsyncHttpsDownloader& downloader);
+    CDownloadTask(std::string_view url, std::string_view responseName, CWebEngineDownloader& downloader, bool isContinueLastSession);
     
-    void doTask(YahooSearchQueryResults& searchQueryResults, WatchHistory& watchHistory);
+protected:
+    bool readResponse(std::stringstream& response);
     
 private:
-    static int maxNewAuctionsToWatch;
-
-private:
-    CYahooSearchQuery _searchQuery;
-    CAsyncHttpsDownloader::FutureResponseType _response;
+    CWebEngineDownloader::FutureResponseType _responsePath;
+    std::string _responsePathReady;    
 };
 
-int CYahooAddAllAuctionsTask::maxNewAuctionsToWatch = 10;
-
-CYahooAddAllAuctionsTask::CYahooAddAllAuctionsTask(const CYahooSearchQuery& searchQuery, CAsyncHttpsDownloader& downloader)
-    : _searchQuery(searchQuery)
+CDownloadTask::CDownloadTask(std::string_view url, std::string_view responseName, CWebEngineDownloader& downloader, bool isContinueLastSession)
 {
-    _response = downloader.asyncDownload(CYahooUrlFactory::createTarget(_searchQuery));
-}
+    std::string responseNameWithExt(responseName);
+    responseNameWithExt += ".html";
 
-void CYahooAddAllAuctionsTask::doTask(YahooSearchQueryResults& searchQueryResults, WatchHistory& watchHistory)
-{
-    CYahooAuctionInfo::List newAuctions;    
-    CAsyncHttpsDownloader::ResponseType response = _response.get();
-    CYahooAuctionInfoHtmlParser parser(response);
-    while (parser.hasNext())
+    _responsePathReady = DOWNLOADS_DIR + responseNameWithExt;    
+    bool isAddDownload = !isContinueLastSession || !std::filesystem::exists(_responsePathReady);
+
+    if (isAddDownload)
     {
-        const CYahooAuctionInfo& info = parser.next();
-        if (newAuctions.size() < maxNewAuctionsToWatch)
-        {
-            newAuctions.emplace_back(info);
-        }
-        watchHistory.insert(info.getId());
+        _responsePathReady.clear();
+        _responsePath = downloader.addDownload(url, responseName);
     }
-    insertYahooAuctions(searchQueryResults, std::move(_searchQuery), std::move(newAuctions));
 }
 
-class CYahooAddNewAuctionsTask
+bool CDownloadTask::readResponse(std::stringstream& response)
+{
+    try
+    {
+        std::ifstream responseFile;
+        responseFile.exceptions(std::ios::failbit | std::ios::badbit);
+        
+        if (_responsePathReady.empty())
+        {
+            _responsePathReady = _responsePath.get();
+        }
+        
+        responseFile.open(_responsePathReady);
+
+        std::copy(std::istreambuf_iterator<char>(responseFile), std::istreambuf_iterator<char>(), std::ostreambuf_iterator(response));
+        
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        std::cerr << ex.what() << std::endl;
+        return false;
+    }
+}
+
+class CYahooAuctionsTask : public CDownloadTask
 {
 public:
-    typedef std::queue<CYahooAddNewAuctionsTask> Queue;
-
-public:
-    CYahooAddNewAuctionsTask(const CYahooSearchQuery& searchQuery, CAsyncHttpsDownloader& downloader);
+    typedef std::queue<CYahooAuctionsTask> Queue;
     
-    void doTask(YahooSearchQueryResults& searchQueryResults, WatchHistory& watchHistory);
+public:
+    CYahooAuctionsTask(const CYahooSearchQuery& searchQuery, CWebEngineDownloader& downloader, bool isContinueLastSession);
+    
+    void doTask(YahooSearchQueryResults& searchQueryResults, WatchHistory& watchHistory, bool isIgnoreHistory);
+    
+private:
+    static int maxNewAuctionsToWatch;    
     
 private:
     CYahooSearchQuery _searchQuery;
-    CAsyncHttpsDownloader::FutureResponseType _response;
 };
 
-CYahooAddNewAuctionsTask::CYahooAddNewAuctionsTask(const CYahooSearchQuery& searchQuery, CAsyncHttpsDownloader& downloader)
-    : _searchQuery(searchQuery)
+CYahooAuctionsTask::CYahooAuctionsTask(const CYahooSearchQuery& searchQuery, CWebEngineDownloader& downloader, bool isContinueLastSession)
+    : CDownloadTask(CYahooUrlFactory::createUrl(searchQuery), searchQuery.createResponseName(), downloader, isContinueLastSession) 
+    , _searchQuery(searchQuery)
 {
-    _response = downloader.asyncDownload(CYahooUrlFactory::createTarget(_searchQuery));
 }
 
-void CYahooAddNewAuctionsTask::doTask(YahooSearchQueryResults& searchQueryResults, WatchHistory& watchHistory)
-{                   
-    CYahooAuctionInfo::List newAuctions;
-    CAsyncHttpsDownloader::ResponseType response = _response.get();
-    CYahooAuctionInfoHtmlParser parser(response);
-    while (parser.hasNext())
+int CYahooAuctionsTask::maxNewAuctionsToWatch = 10;
+
+void CYahooAuctionsTask::doTask(YahooSearchQueryResults& searchQueryResults, WatchHistory& watchHistory, bool isIgnoreHistory)
+{
+    std::stringstream response;
+    if (readResponse(response))
     {
-        const CYahooAuctionInfo& auctionInfo = parser.next();
-        auto it = watchHistory.find(auctionInfo.getId());
-        if (it == watchHistory.end())
+        CYahooAuctionInfo::List newAuctions;
+        CYahooAuctionInfoHtmlParser parser(response);
+        while (parser.hasNext())
         {
-            newAuctions.emplace_back(auctionInfo);
-            watchHistory.insert(auctionInfo.getId());
+            const CYahooAuctionInfo& auctionInfo = parser.next();
+            if (isIgnoreHistory || (watchHistory.count(auctionInfo.getId()) == 0))
+            {
+                if (!isIgnoreHistory || (newAuctions.size() < maxNewAuctionsToWatch))
+                {
+                    newAuctions.emplace_back(auctionInfo);
+                }
+                watchHistory.insert(auctionInfo.getId());
+            }      
         }
+        insertYahooAuctions(searchQueryResults, std::move(_searchQuery), std::move(newAuctions));
     }
-    insertYahooAuctions(searchQueryResults, std::move(_searchQuery), std::move(newAuctions));
 }
 
 static void printWatchHistoryFile(const std::string& watchHistoryFileName, const WatchHistory& watchHistory)
@@ -292,30 +311,6 @@ static void doTasks(std::queue<T>& tasks, Args&&... args)
     }    
 }
 
-static void createYahooAllAuctionsHtml(const std::string& keywordsFileName, const std::string& watchHistoryFileName)
-{
-    asio::io_context ioContext;
-    CAsyncHttpsDownloader downloader(ioContext, CYahooUrlFactory::createHost(), CYahooUrlFactory::createPort());
-    CYahooAddAllAuctionsTask::Queue tasks;
-    CYahooKeywordsFileSearchQueryParser parser(keywordsFileName);
-    while (parser.hasNext())
-    {
-        tasks.emplace(parser.next(), downloader);
-    }
-
-    CThreadList threads;
-    threads.run(ioContext);
-    
-    YahooSearchQueryResults searchQueryResults;
-    WatchHistory watchHistoryNow;
-
-    doTasks(tasks, searchQueryResults, watchHistoryNow);
-    threads.join();
-
-    printWatchHistoryFile(watchHistoryFileName, watchHistoryNow);   
-    createYahooHtmlFile(searchQueryResults, keywordsFileName);
-}
-
 static WatchHistory getWatchHistory(const std::string& watchHistoryFileName)
 {
     std::ifstream watchHistoryFileInput;
@@ -334,41 +329,57 @@ static WatchHistory getWatchHistory(const std::string& watchHistoryFileName)
     return json::value_to<WatchHistory>(parser.release());
 }
 
-static void createYahooNewAuctionsHtml(const std::string& keywordsFileName, const std::string& watchHistoryFileName)
+static void prepareDownloadsDir()
+{
+    if (std::filesystem::exists(DOWNLOADS_DIR))
+    {
+        std::filesystem::remove_all(DOWNLOADS_DIR);
+    }
+    if (!std::filesystem::create_directory(DOWNLOADS_DIR))
+    {
+        std::string message = "Can't create download dir ";
+        message.append(DOWNLOADS_DIR);
+        throw std::runtime_error(message);
+    }
+}
+
+static void prepareDownloader(CWebEngineDownloader& downloader, bool isContinueLastSession)
+{
+    if (!isContinueLastSession)
+    {
+        prepareDownloadsDir();
+    }
+    downloader.setDownloadDir(DOWNLOADS_DIR);
+    downloader.start();    
+}
+
+static void createYahooAuctionsHtml(const std::string& keywordsFileName, const std::string& watchHistoryFileName, bool isContinueLastSession)
 {          
-    asio::io_context ioContext;
-    CAsyncHttpsDownloader downloader(ioContext, CYahooUrlFactory::createHost(), CYahooUrlFactory::createPort());
-    CYahooAddNewAuctionsTask::Queue tasks;
+    CYahooAuctionsTask::Queue tasks;
+    CWebEngineDownloader downloader;
     CYahooKeywordsFileSearchQueryParser searchQueryParser(keywordsFileName);
     while (searchQueryParser.hasNext())
     {
-        tasks.emplace(searchQueryParser.next(), downloader);        
-    }    
-    
-    CThreadList threads;
-    threads.run(ioContext);
-    
-    YahooSearchQueryResults searchQueryResults;
-    WatchHistory watchHistory = getWatchHistory(watchHistoryFileName);
+        tasks.emplace(searchQueryParser.next(), downloader, isContinueLastSession);        
+    }
+    prepareDownloader(downloader, isContinueLastSession);    
    
-    doTasks(tasks, searchQueryResults, watchHistory);    
-    threads.join();
-
+    YahooSearchQueryResults searchQueryResults;
+    WatchHistory watchHistory;
+    if (std::filesystem::exists(watchHistoryFileName))
+    {
+        watchHistory = getWatchHistory(watchHistoryFileName);
+    }
+    bool isIgnoreHistory = watchHistory.empty();
+    doTasks(tasks, searchQueryResults, watchHistory, isIgnoreHistory);
     printWatchHistoryFile(watchHistoryFileName, watchHistory);
     createYahooHtmlFile(searchQueryResults, keywordsFileName);
 }
 
-static void watchYahooAuctions(const std::string& keywordsFileName)
+static void watchYahooAuctions(const std::string& keywordsFileName, bool isContinueLastSession)
 {
     std::string watchHistoryFileName = getWatchHistoryFileName(keywordsFileName, "yahoo");
-    if (std::filesystem::exists(watchHistoryFileName))
-    {
-        createYahooNewAuctionsHtml(keywordsFileName, watchHistoryFileName);
-    }
-    else
-    {
-        createYahooAllAuctionsHtml(keywordsFileName, watchHistoryFileName);
-    }
+    createYahooAuctionsHtml(keywordsFileName, watchHistoryFileName, isContinueLastSession);
 }
 
 static void createDiskunionHtmlFile(const DiskunionItemQueryResults& itemQueryResults, const std::string& itemsFileName)
@@ -435,7 +446,7 @@ static void createDiskunionHtmlFile(const DiskunionItemQueryResults& itemQueryRe
     }
 }
 
-class CDiskunionAddAllItemsTask
+class CDiskunionAddAllItemsTask : public CDownloadTask
 {
 public:
     typedef std::queue<CDiskunionAddAllItemsTask> Queue;
@@ -452,70 +463,28 @@ private:
 };
 
 CDiskunionAddAllItemsTask::CDiskunionAddAllItemsTask(const CDiskunionItemQuery& itemQuery, CWebEngineDownloader& downloader, bool isContinueLastSession)
-    : _itemQuery(itemQuery)
+    : CDownloadTask(itemQuery.getUrl(), itemQuery.getCode(), downloader, isContinueLastSession)
+    , _itemQuery(itemQuery)
 {
-    bool isAddDownload = true;
-    if (isContinueLastSession)
-    {
-        _responsePathReady = DISKUNION_DOWNLOADS_DIR + itemQuery.getCode() + ".html";
-        if (std::filesystem::exists(_responsePathReady))
-        {
-            isAddDownload = false;
-        }
-        else
-        {
-            _responsePathReady.clear();
-        }
-    }
-
-    if (isAddDownload)
-    {
-        _responsePathReady.clear();
-        _responsePath = downloader.addDownload(itemQuery.getUrl());
-    }
 }
 
 void CDiskunionAddAllItemsTask::doTask(DiskunionItemQueryResults& itemQueryResults, WatchHistory& watchHistory, bool isIgnoreHistory)
 {
-    std::ifstream responseFile;
-    responseFile.exceptions(std::ios::failbit | std::ios::badbit);
-    
-    if (_responsePathReady.empty())
-    {
-        _responsePathReady = _responsePath.get();
-    }
-    
-    responseFile.open(_responsePathReady);
-    
     std::stringstream response;
-    std::copy(std::istreambuf_iterator<char>(responseFile), std::istreambuf_iterator<char>(), std::ostreambuf_iterator(response));
-    
+    readResponse(response);
+
     CDiskunionItemInfoHtmlParser parser(response);
     CDiskunionItemInfo itemInfo(parser);
     while (parser.hasNextUsedItem())
     {
         const CDiskunionUsedItemInfo& usedItemInfo = parser.nextUsedItem();
-        if (isIgnoreHistory || (watchHistory.find(usedItemInfo.getId()) == watchHistory.end()))
+        if (isIgnoreHistory || (watchHistory.count(usedItemInfo.getId()) == 0))
         {
             itemInfo.getUsedItems().emplace_back(usedItemInfo);
             watchHistory.insert(usedItemInfo.getId());            
         }
     }
     insertDiskunionItems(itemQueryResults, std::move(_itemQuery), std::move(itemInfo));
-}
-
-static void prepareDiskunionDownloadsDir()
-{
-    if (std::filesystem::exists(DISKUNION_DOWNLOADS_DIR))
-    {
-        std::filesystem::remove_all(DISKUNION_DOWNLOADS_DIR);
-    }
-    if (!std::filesystem::create_directory(DISKUNION_DOWNLOADS_DIR))
-    {
-        std::string message = "Can't create download dir ";
-        message.append(DISKUNION_DOWNLOADS_DIR);
-        throw std::runtime_error(message);
-    }
 }
 
 static void createDiskunionItemsHtml(const std::string& itemsFileName, const std::string& watchHistoryFileName, bool isContinueLastSession)
@@ -527,12 +496,7 @@ static void createDiskunionItemsHtml(const std::string& itemsFileName, const std
     {
         tasks.emplace(parser.next(), downloader, isContinueLastSession);
     }
-    if (!isContinueLastSession)
-    {
-        prepareDiskunionDownloadsDir();
-    }
-    downloader.setDownloadDir(DISKUNION_DOWNLOADS_DIR);
-    downloader.start();
+    prepareDownloader(downloader, isContinueLastSession);
 
     DiskunionItemQueryResults itemQueryResults;
     WatchHistory watchHistory;
@@ -583,7 +547,6 @@ static void bookmarksToDiskunionItems()
         
         streamItems << name << std::endl;
         streamItems << link << std::endl;
-        
         parser.skipBeginning("<A");
     }
 }
@@ -592,14 +555,27 @@ int main(int argCount, char** argValues)
 {    
     try
     {
+        {
+            CWebEngineDownloader downloader;
+            CWebEngineDownloader::FutureResponseType path = downloader.addDownload("https://diskunion.net/portal/ct/detail/DI170714-500");
+            prepareDownloader(downloader, false);
+            std::cout << path.get() << std::endl;
+        }
+        {
+            CWebEngineDownloader downloader;
+            CWebEngineDownloader::FutureResponseType path = downloader.addDownload("https://diskunion.net/portal/ct/detail/DI170714-503");
+            prepareDownloader(downloader, false);
+            std::cout << path.get() << std::endl;
+        }        
+        return 0;
         CCmdLineParamsParser parser(argCount, argValues);
         if (parser.isWatchYahoo())
         {
-            watchYahooAuctions(parser.getYahooKeywordsFilePath());
+            watchYahooAuctions(parser.getYahooKeywordsFilePath(), parser.isContinueLastSession());
         }
         if (parser.isWatchDiskunion())
         {
-            watchDiskunionItems(parser.getDiskunionItemsFilePath(), parser.isContinueDiskunionLastSession());
+            watchDiskunionItems(parser.getDiskunionItemsFilePath(), parser.isContinueLastSession());
         }
     }
     catch (const std::exception& ex)

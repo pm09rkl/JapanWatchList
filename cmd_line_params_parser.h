@@ -13,8 +13,8 @@ namespace watchList
         bool isWatchDiskunion() const
             { return _isWatchDiskunion; }
             
-        bool isContinueDiskunionLastSession() const
-            { return _isContinueDiskunionLastSession; }
+        bool isContinueLastSession() const
+            { return _isContinueLastSession; }
             
         bool isWatchYahoo() const
             { return _isWatchYahoo; }            
@@ -31,7 +31,7 @@ namespace watchList
 
     private:
         bool _isWatchDiskunion;
-        bool _isContinueDiskunionLastSession;
+        bool _isContinueLastSession;
         bool _isWatchYahoo;
         std::string _yahooKeywordsFilePath;
         std::string _diskunionItemsFilePath;

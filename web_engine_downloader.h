@@ -18,7 +18,7 @@ public:
     ~CWebEngineDownloader();
     
 public:
-    FutureResponseType addDownload(std::string_view link);
+    FutureResponseType addDownload(std::string_view link, std::string_view responseName = std::string_view());
     void start();
     void setDownloadDir(std::string_view dir);
     

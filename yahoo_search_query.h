@@ -23,13 +23,15 @@ namespace watchList
             
         const std::string& getCategoryName() const;
         
+        std::string createResponseName() const;
+        
     public:
         bool operator<(const CYahooSearchQuery& other) const;
         
-    private:
+    public:
         CYahooSearchQuery();
 
-    private:
+    public:
         std::string _keyword;
         std::string _category;
         EYahooSearchMethod _searchMethod;

@@ -38,6 +38,14 @@ const std::string& CYahooSearchQuery::getCategoryName() const
     return (it == categoryName.end()) ? categoryName.at("") : it->second;
 }
 
+std::string CYahooSearchQuery::createResponseName() const
+{
+    std::string responseName = _keyword + " ";
+    responseName += getCategoryName() + " ";
+    responseName += getYahooSearchMethod(_searchMethod);
+    return responseName;
+}
+
 bool CYahooSearchQuery::operator<(const CYahooSearchQuery& other) const
 {
     int cmpResult = _keyword.compare(other._keyword);

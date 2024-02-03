@@ -137,6 +137,7 @@ Nuclear Assault -mp3
 Nuclear Blast -mp3
 Num Skull -mp3
 Obituary -mp3
+Offspring Americana -mp3
 Onslaught -mp3
 Over kill -mp3
 Overkill -mp3

@@ -1,4 +1,3 @@
--categories:22192,22260 -searchMethod:title
 Abattoir -mp3
 Accuser -mp3
 Adolescents -mp3
@@ -15,9 +14,11 @@ Asphyx -mp3
 Assassin -mp3
 At War -mp3
 Atrophy -mp3
+Aurophon -mp3
 Autopsy -mp3
 Bad Brains -mp3
 Bad Religion -mp3
+Banzai -mp3
 Baron Rojo -mp3
 Bathory -mp3
 Beherit -mp3
@@ -41,14 +42,14 @@ Celtic Frost -mp3
 Chastain -mp3
 Circle Jerks -mp3
 Coal Chamber -mp3
+Cogumelo -mp3
+Combat -mp3
 Coroner -mp3
 Corrosion Of Conformity -mp3
 Cro-mags -mp3
 Cruel Force -mp3
 D.O.A -mp3
-DOA -mp3
 D.R.I. -mp3
-DRI -mp3
 Dark Angel -mp3
 Darkness Death
 Darkness Defenders
@@ -81,7 +82,6 @@ Fifth Angel -mp3
 Flotsam And Jetsam -mp3
 Forbidden -mp3
 G.B.H -mp3
-GBH -mp3
 Gammacide -mp3
 Gothic Slam -mp3
 Grinder -mp3
@@ -90,6 +90,7 @@ Hallow s Eve -mp3
 Hallows Eve -mp3
 Hellhammer -mp3
 Hirax -mp3
+Hydra Vein -mp3
 Incubus -mp3
 Inepsy -mp3
 Infernal Majesty None Shall Defy -mp3
@@ -103,12 +104,12 @@ Laaz Rockit -mp3
 Lacuna Coil -mp3
 Living Death -mp3
 M.O.D. -mp3
-MOD -mp3
 Malevolent Creation -mp3
 Mass Confusion Intrusion -mp3
 Massacra -mp3
 Massacre -mp3
 Master -mp3
+MBR -mp3
 MC5 -mp3
 Megadeth -mp3
 Megaforce -mp3
@@ -126,12 +127,15 @@ Motor head -mp3
 Motorhead -mp3
 MP Bursting Out -mp3
 Mudvayne -mp3
+Music For Nations -mp3
 Mutilator -mp3
 Napalm Death -mp3
 Nasty Savage -mp3
 Nazareth -mp3
+Neat -mp3
 Necrosanct -mp3
 Nuclear Assault -mp3
+Nuclear Blast -mp3
 Num Skull -mp3
 Obituary -mp3
 Offspring Americana -mp3
@@ -148,6 +152,7 @@ Paradox Product -mp3
 Peaceville -mp3
 Pestilence -mp3
 Possessed -mp3
+Price Killers -mp3
 Protector -mp3
 Pungent Stench -mp3
 Ramones -mp3
@@ -156,11 +161,11 @@ Razor -mp3
 Repulsion -mp3
 Rigor Mortis -mp3
 Risk -mp3
+Roadracer -mp3
+Roadrunner -mp3
 Rottrevore -mp3
 Running Wild -mp3
 S.O.D. -mp3
-SOD -mp3
-Stormtroopers of Death -mp3
 Sacred Reich -mp3
 Sacrifice -mp3
 Sacrilege -mp3
@@ -168,14 +173,17 @@ Sadus -mp3
 Sarcofago -mp3
 Savatage -mp3
 Saxon -mp3
+Scandinavian Metal Attack -mp3
 Sepultura -mp3
 Shah -mp3
 Sinister -mp3
 Six Feet Under -mp3
+Slammer -mp3
 Slaughter -mp3
 Slayer -mp3
 Slipknot -mp3
 Sodom -mp3
+Steamhammer -mp3
 Stooges -mp3
 Suicidal Tendencies -mp3
 Tank -mp3
@@ -183,10 +191,12 @@ Tank NWOBHM -mp3
 Tankard -mp3
 Terrorizer -mp3
 Testament -mp3
+Torrid -mp3
 Toxik -mp3
 Trouble -mp3
 U.K. Subs -mp3
 UK Subs -mp3
+Under One Flag -mp3
 Vampyr -mp3
 Varukers -mp3
 Vendetta -mp3
@@ -207,32 +217,3 @@ Witchfinder General -mp3
 Znowhite -mp3
 Zoetrope -mp3
 Xentrix -mp3
--categories:22192,22260 -searchMethod:titleAndDescription
-Aurophon
-Banzai
-Cogumelo
-Combat
-MBR
-Music For Nations
-Neat
-Nuclear Blast
-Price Killers
-Pricekillers
-Roadracer
-Roadrunner
-Scandinavian Metal Attack
-Steamhammer
-Torrid
-Under One Flag
--categories:2084007217 -searchMethod:title
-Set
--categories:2084007205 -searchMethod:title
-Set
--categories:2084007218 -searchMethod:title
-Set
--categories:2084007024 -searchMethod:title
-Set
--categories:22192 -searchMethod:title
-Metal Set
--categories:22260 -searchMethod:title
-Metal Set

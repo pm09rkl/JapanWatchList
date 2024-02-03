@@ -12,6 +12,7 @@ class CWebEngineDownloader::CImpl
 {
 public:
     CImpl();
+    ~CImpl();
     
     static std::shared_ptr<CImpl> create();
     
@@ -21,9 +22,12 @@ public:
     void setDownloadDir(std::string_view dir);    
 
 private:
-    void setDownloadDestination(WebKitDownload* download, std::string_view fileName) const;
-    void processDownloadTask();
-    void completeDownloadTask(WebKitDownload* download, GError* error = nullptr);
+    void setDownloadDestination(WebKitDownload* download, std::string_view fileName);
+    void startTask();
+    void processTask();
+    bool hasTask();
+    void waitForTask();
+    void completeTask(WebKitDownload* download, GError* error = nullptr);    
     void startDownloading(GtkApplication* app);
     
     int getNumStepsBeforeHugeBreak();
@@ -31,7 +35,8 @@ private:
     int getHugeBreakTime();
 
 private:
-    static void processDownloadTask(gpointer userData);
+    static void processTask(gpointer userData);
+    static gboolean waitForTask(gpointer userData);
     static void onActivateApp(GtkApplication* app, gpointer userData);
     static gboolean onDecideDestination(WebKitDownload* download, gchar* suggestedFilename, gpointer userData);    
     static void onDownloadFinished(WebKitDownload* download, gpointer userData);
@@ -65,6 +70,10 @@ private:
     DownloadTask::List::iterator _nextTask;
     DownloadTasksInProcess _tasksInProcess;
     int _numStepsUntilHugeBreak;
+
+    std::mutex _tasksMutex;
+    std::mutex _downloadDirMutex;
+    std::thread _thread;    
 };
 
 CWebEngineDownloader::CImpl::DownloadTask::DownloadTask(std::string_view link, std::string_view responseName)
@@ -82,24 +91,27 @@ CWebEngineDownloader::CImpl::CImpl()
     , _nextTask(_tasks.end())
     , _numStepsUntilHugeBreak(0)
 {
+    _thread = std::thread([this]() { start(); });
+}
+
+CWebEngineDownloader::CImpl::~CImpl()
+{
+    _thread.detach();
 }
 
 CWebEngineDownloader::FutureResponseType CWebEngineDownloader::CImpl::addDownload(std::string_view link, std::string_view responseName)
 {
+    std::unique_lock lock(_tasksMutex);
     _tasks.emplace(_tasks.end(), link, responseName);
     return _tasks.back().responsePath.get_future();
 }
 
 void CWebEngineDownloader::CImpl::start()
 {
-    if (!_tasks.empty())
-    {
-        _app = gtk_application_new("org.gtk.example", G_APPLICATION_DEFAULT_FLAGS);
-        g_signal_connect(_app, "activate", G_CALLBACK(onActivateApp), this);  
-        g_application_run(G_APPLICATION(_app), 0, nullptr);
-        g_object_unref(_app);
-        _app = nullptr;
-    }
+    _app = gtk_application_new("org.gtk.example", G_APPLICATION_DEFAULT_FLAGS);
+    g_signal_connect(_app, "activate", G_CALLBACK(onActivateApp), this);  
+    g_application_run(G_APPLICATION(_app), 0, nullptr);
+    g_clear_object(&_app);
 }
 
 int CWebEngineDownloader::CImpl::getNumStepsBeforeHugeBreak()
@@ -117,14 +129,17 @@ int CWebEngineDownloader::CImpl::getHugeBreakTime()
     return _hugeBreakDist(_randomEngine);
 }
 
-void CWebEngineDownloader::CImpl::setDownloadDestination(WebKitDownload* download, std::string_view fileName) const
+void CWebEngineDownloader::CImpl::setDownloadDestination(WebKitDownload* download, std::string_view fileName)
 {
     auto it = _tasksInProcess.find(download);
     if (it != _tasksInProcess.end())
     {
         auto taskIt = it->second;
         taskIt->targetResponsePath.clear();
-        taskIt->targetResponsePath.append(_downloadDir);
+        {
+            std::unique_lock lock(_downloadDirMutex);
+            taskIt->targetResponsePath.append(_downloadDir);
+        }
         taskIt->targetResponsePath.append(taskIt->responseName.empty() ? fileName : taskIt->responseName);
         webkit_download_set_destination(download, taskIt->targetResponsePath.c_str());
     }
@@ -133,6 +148,7 @@ void CWebEngineDownloader::CImpl::setDownloadDestination(WebKitDownload* downloa
 void CWebEngineDownloader::CImpl::setDownloadDir(std::string_view dir)
 {
     // gtk accepts only absolut path
+    std::unique_lock lock(_downloadDirMutex);
     _downloadDir = std::filesystem::canonical(dir).string();
     if (!_downloadDir.empty() && (_downloadDir.back() != '/'))
     {
@@ -140,35 +156,63 @@ void CWebEngineDownloader::CImpl::setDownloadDir(std::string_view dir)
     }
 }
 
-void CWebEngineDownloader::CImpl::processDownloadTask()
+void CWebEngineDownloader::CImpl::startTask()
 {
-    if (_nextTask != _tasks.end())
+    if (_numStepsUntilHugeBreak <= 0)
     {
-        WebKitDownload* download = webkit_web_view_download_uri(WEBKIT_WEB_VIEW(_webView), _nextTask->link.c_str());
-        g_signal_connect(download, "failed", G_CALLBACK(onDownloadFailed), this);
-        g_signal_connect(download, "finished", G_CALLBACK(onDownloadFinished), this);
-        if (!_downloadDir.empty())
-        {
-            g_signal_connect(download, "decide-destination", G_CALLBACK(onDecideDestination), this);
-        }
-
-        --_numStepsUntilHugeBreak;
-        if (_numStepsUntilHugeBreak <= 0)
-        {
-            _numStepsUntilHugeBreak = getNumStepsBeforeHugeBreak();
-            g_timeout_add_once(getHugeBreakTime(), processDownloadTask, this);
-        }
-        else
-        {
-            g_timeout_add_once(getSmallBreakTime(), processDownloadTask, this);
-        }
-
-        _tasksInProcess[download] = _nextTask;        
-        ++_nextTask;
+        _numStepsUntilHugeBreak = getNumStepsBeforeHugeBreak();
+        g_timeout_add_once(getHugeBreakTime(), processTask, this);
+    }
+    else
+    {
+        g_timeout_add_once(getSmallBreakTime(), processTask, this);
     }
 }
 
-void CWebEngineDownloader::CImpl::completeDownloadTask(WebKitDownload* download, GError* error)
+void CWebEngineDownloader::CImpl::processTask()
+{
+    WebKitDownload* download = webkit_web_view_download_uri(WEBKIT_WEB_VIEW(_webView), _nextTask->link.c_str());
+    g_signal_connect(download, "failed", G_CALLBACK(onDownloadFailed), this);
+    g_signal_connect(download, "finished", G_CALLBACK(onDownloadFinished), this);
+    if (!_downloadDir.empty())
+    {
+        g_signal_connect(download, "decide-destination", G_CALLBACK(onDecideDestination), this);
+    }
+
+    --_numStepsUntilHugeBreak;
+    _tasksInProcess[download] = _nextTask;
+    
+    bool hasOtherTasks = false;
+    {
+        std::unique_lock lock(_tasksMutex);
+        hasOtherTasks = (++_nextTask != _tasks.end());
+    }
+    if (hasOtherTasks)
+    {
+        startTask();    
+    }
+}
+
+bool CWebEngineDownloader::CImpl::hasTask()
+{
+    {
+        std::unique_lock lock(_tasksMutex);
+        if (_tasks.empty())
+        {
+            return false;
+        }
+        _nextTask = _tasks.begin();
+    }
+    startTask();
+    return true;
+}
+
+void CWebEngineDownloader::CImpl::waitForTask()
+{
+    g_timeout_add_seconds(5, waitForTask, this);
+}
+
+void CWebEngineDownloader::CImpl::completeTask(WebKitDownload* download, GError* error)
 {
     auto it = _tasksInProcess.find(download);
     if (it != _tasksInProcess.end())
@@ -185,10 +229,16 @@ void CWebEngineDownloader::CImpl::completeDownloadTask(WebKitDownload* download,
             taskIt->responsePath.set_value(dest);
         }
         _tasksInProcess.erase(it);
-        _tasks.erase(taskIt);
-        if (_tasks.empty() && _tasksInProcess.empty())
+        bool hasNoMoreTasks = false;
         {
-            g_application_quit(G_APPLICATION(_app));
+            std::unique_lock lock(_tasksMutex);
+            _tasks.erase(taskIt);
+            hasNoMoreTasks = _tasks.empty();
+        }
+
+        if (hasNoMoreTasks && _tasksInProcess.empty())
+        {
+            waitForTask();
         }
     }
 }
@@ -203,19 +253,19 @@ void CWebEngineDownloader::CImpl::startDownloading(GtkApplication* app)
     
     _numStepsUntilHugeBreak = getNumStepsBeforeHugeBreak();
     _nextTask = _tasks.begin();
-    g_timeout_add_once(getSmallBreakTime(), processDownloadTask, this);
+    waitForTask();
 }
 
 void CWebEngineDownloader::CImpl::onDownloadFinished(WebKitDownload* download, gpointer userData)
 {
     CImpl* ptrThis = static_cast<CImpl*>(userData);
-    return ptrThis->completeDownloadTask(download);
+    return ptrThis->completeTask(download);
 }
 
 void CWebEngineDownloader::CImpl::onDownloadFailed(WebKitDownload* download, GError* error, gpointer userData)
 {
     CImpl* ptrThis = static_cast<CImpl*>(userData);
-    return ptrThis->completeDownloadTask(download, error);    
+    return ptrThis->completeTask(download, error);    
 }
 
 gboolean CWebEngineDownloader::CImpl::onDecideDestination(WebKitDownload* download, gchar* suggestedFilename, gpointer userData)
@@ -225,10 +275,16 @@ gboolean CWebEngineDownloader::CImpl::onDecideDestination(WebKitDownload* downlo
     return true;
 }
 
-void CWebEngineDownloader::CImpl::processDownloadTask(gpointer userData)
+void CWebEngineDownloader::CImpl::processTask(gpointer userData)
 {
     CImpl* ptrThis = static_cast<CImpl*>(userData);
-    return ptrThis->processDownloadTask();
+    return ptrThis->processTask();
+}
+
+gboolean CWebEngineDownloader::CImpl::waitForTask(gpointer userData)
+{
+    CImpl* ptrThis = static_cast<CImpl*>(userData);
+    return ptrThis->hasTask() ? G_SOURCE_REMOVE : G_SOURCE_CONTINUE;
 }
 
 void CWebEngineDownloader::CImpl::onActivateApp(GtkApplication* app, gpointer userData)
@@ -242,49 +298,25 @@ std::shared_ptr<CWebEngineDownloader::CImpl> CWebEngineDownloader::CImpl::create
     return std::make_shared<CImpl>();
 }
 
-CWebEngineDownloader::CWebEngineDownloader()
-    : _pImpl(CImpl::create()) 
-{
-}
+std::shared_ptr<CWebEngineDownloader::CImpl> CWebEngineDownloader::_pImpl;
 
-CWebEngineDownloader::~CWebEngineDownloader()
+void CWebEngineDownloader::checkDownloader()
 {
-    if (_thread.joinable())
+    if (_pImpl == nullptr)
     {
-        try 
-        {
-            _thread.detach();
-        }
-        catch (...)
-        {
-        }
-    }
-}
-
-void CWebEngineDownloader::waitForCompletion()
-{
-    // do not allow operations until start method stop working
-    if (_thread.joinable())
-    {
-        _thread.join();
+        _pImpl = CImpl::create();
     }    
 }
 
 CWebEngineDownloader::FutureResponseType CWebEngineDownloader::addDownload(std::string_view link, std::string_view responseName)
 {
-    waitForCompletion();
+    checkDownloader();
     return _pImpl->addDownload(link, responseName);
-}
-
-void CWebEngineDownloader::start()
-{
-    waitForCompletion();
-    _thread = std::thread([pImpl = _pImpl](){ pImpl->start(); });
 }
 
 void CWebEngineDownloader::setDownloadDir(std::string_view dir)
 {
-    waitForCompletion();
+    checkDownloader();
     _pImpl->setDownloadDir(dir);
 }
 }

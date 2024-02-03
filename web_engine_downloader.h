@@ -13,23 +13,18 @@ public:
     typedef std::string ResponseType;
     typedef std::future<ResponseType> FutureResponseType;
     
-public:  
-    CWebEngineDownloader();
-    ~CWebEngineDownloader();
-    
 public:
     FutureResponseType addDownload(std::string_view link, std::string_view responseName = std::string_view());
-    void start();
     void setDownloadDir(std::string_view dir);
     
 private:
-    void waitForCompletion();
+    void checkDownloader();
     
 private:
     class CImpl;
     
 private:
-    std::thread _thread;
-    std::shared_ptr<CImpl> _pImpl;
+    // WebKitWebView allow creation only from one thread
+    static std::shared_ptr<CImpl> _pImpl;
 };
 }

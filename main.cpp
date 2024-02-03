@@ -350,7 +350,6 @@ static void prepareDownloader(CWebEngineDownloader& downloader, bool isContinueL
         prepareDownloadsDir();
     }
     downloader.setDownloadDir(DOWNLOADS_DIR);
-    downloader.start();    
 }
 
 static void createYahooAuctionsHtml(const std::string& keywordsFileName, const std::string& watchHistoryFileName, bool isContinueLastSession)
@@ -555,19 +554,6 @@ int main(int argCount, char** argValues)
 {    
     try
     {
-        {
-            CWebEngineDownloader downloader;
-            CWebEngineDownloader::FutureResponseType path = downloader.addDownload("https://diskunion.net/portal/ct/detail/DI170714-500");
-            prepareDownloader(downloader, false);
-            std::cout << path.get() << std::endl;
-        }
-        {
-            CWebEngineDownloader downloader;
-            CWebEngineDownloader::FutureResponseType path = downloader.addDownload("https://diskunion.net/portal/ct/detail/DI170714-503");
-            prepareDownloader(downloader, false);
-            std::cout << path.get() << std::endl;
-        }        
-        return 0;
         CCmdLineParamsParser parser(argCount, argValues);
         if (parser.isWatchYahoo())
         {

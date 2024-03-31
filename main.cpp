@@ -141,7 +141,7 @@ private:
 CDownloadTask::CDownloadTask(std::string_view url, std::string_view responseName, CWebEngineDownloader& downloader, bool isContinueLastSession)
 {
     std::string responseNameWithExt(responseName);
-    responseNameWithExt += ".html";
+    //responseNameWithExt += ".html";
 
     _responsePathReady = DOWNLOADS_DIR + responseNameWithExt;    
     bool isAddDownload = !isContinueLastSession || !std::filesystem::exists(_responsePathReady);

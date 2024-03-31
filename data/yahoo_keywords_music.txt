@@ -4,6 +4,7 @@ Adolescents -mp3
 Agent Steel -mp3
 Agnostic Front -mp3
 Alice In Chains -mp3
+Amebix -mp3
 Angel Dust -mp3
 Angry Samoans -mp3
 Annihilator -mp3
@@ -12,6 +13,7 @@ Anti-Cimex -mp3
 Artillery -mp3
 Asphyx -mp3
 Assassin -mp3
+Assuck -mp3
 At War -mp3
 Atrophy -mp3
 Aurophon -mp3
@@ -69,6 +71,7 @@ Devastation -mp3
 Diamond Head -mp3
 Dictators -mp3
 Discharge -mp3
+Doom -mp3
 Dream Death -mp3
 Earache -mp3
 English Dogs -mp3
@@ -76,6 +79,7 @@ Exciter -mp3
 Exhorder -mp3
 Exodus -mp3
 Exploited -mp3
+Extreme Noise Terror -mp3
 Exumer -mp3
 Faith Or Fear -mp3
 Fifth Angel -mp3
@@ -88,9 +92,12 @@ Grinder -mp3
 Hades -mp3
 Hallow s Eve -mp3
 Hallows Eve -mp3
+Hellbastard -mp3
 Hellhammer -mp3
 Hirax -mp3
+Hobbs Angel Of Death -mp3
 Hydra Vein -mp3
+Impulse Manslaughter -mp3
 Incubus -mp3
 Inepsy -mp3
 Infernal Majesty None Shall Defy -mp3
@@ -131,6 +138,7 @@ Music For Nations -mp3
 Mutilator -mp3
 Napalm Death -mp3
 Nasty Savage -mp3
+Nausea -mp3
 Nazareth -mp3
 Neat -mp3
 Necrosanct -mp3
@@ -176,6 +184,7 @@ Saxon -mp3
 Scandinavian Metal Attack -mp3
 Sepultura -mp3
 Shah -mp3
+Siege -mp3
 Sinister -mp3
 Six Feet Under -mp3
 Slammer -mp3
@@ -217,3 +226,15 @@ Witchfinder General -mp3
 Znowhite -mp3
 Zoetrope -mp3
 Xentrix -mp3
+E-X-E -mp3
+EXE -mp3
+Jaguar -mp3
+MP Get It Now -mp3
+MP Show Down -mp3
+Chaos UK -mp3
+Chaos U.K. -mp3
+Negative Approach -mp3
+Poison Idea -mp3
+Cyclone -mp3
+Re-animator -mp3
+Reanimator -mp3
